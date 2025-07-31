@@ -28,10 +28,10 @@ async def process_emm11(page: Page, emm11_numbers_list, log_callback=print, send
                 error_locator = page.locator("#ContentPlaceHolder1_ErrorLbl")
                 if await error_locator.is_visible():
                     error_text = await error_locator.inner_text()
-                    log_callback(f"TP Number: {tp_num}\n🔎 Message: {error_text}")
 
                     tp_num = str(tp_num)
                     if "not generated for storage license" in error_text:
+                        log_callback(f"{tp_num}\n : Unused")
                         tp_num_list.append(tp_num)
                 else:
                     log_callback(f"TP Number: {tp_num}\n✅ No error detected or form submitted.")
@@ -39,7 +39,8 @@ async def process_emm11(page: Page, emm11_numbers_list, log_callback=print, send
                 log_callback(f"⚠️ TP Number: {tp_num} - Failed to process due to: {e}")
 
         if tp_num_list:
-            log_callback(f"📄 Preparing to generate PDFs for {len(tp_num_list)} eligible TP numbers.")
+            print("pdf")
+            # log_callback(f"📄 Preparing to generate PDFs for {len(tp_num_list)} eligible TP numbers.")
             return tp_num_list
         else:
             log_callback("ℹ️ No eligible TP numbers found for PDF generation.")

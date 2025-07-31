@@ -1,25 +1,44 @@
 import os
+import inspect
 from string import Template
 from datetime import datetime
 from playwright.async_api import async_playwright
 import aiofiles
-import inspect
-
+import base64
+from io import BytesIO
+import qrcode
 TEMPLATE_PATH = "index.html"
 
+
+# Load HTML template
 async def load_template():
     async with aiofiles.open(TEMPLATE_PATH, mode="r", encoding="utf-8") as f:
         return await f.read()
 
+
+# Fill template with actual data
 async def fill_template(data: dict, template_str: str):
     return Template(template_str).safe_substitute(data)
 
+
+# Create and save QR code
+async def create_qr_image_base64(tp_num, url):
+    img = qrcode.make(url)
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{img_base64}"
+
+
+# Main PDF generation function
 async def pdf_gen(tp_num_list, log_callback=print, send_pdf_callback=None):
     if not tp_num_list:
         log_callback("ℹ️ No TP numbers provided.")
-        return
+        return []
 
     os.makedirs("pdf", exist_ok=True)
+    os.makedirs("temp_img", exist_ok=True)
+    all_pdfs = []
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -32,11 +51,17 @@ async def pdf_gen(tp_num_list, log_callback=print, send_pdf_callback=None):
                 url = f"https://upmines.upsdc.gov.in/Registration/PrintRegistrationFormVehicleCheckValidOrNot.aspx?eId={tp_num}"
                 await page.goto(url, timeout=20000)
 
+                # Create QR code
+                qr_base64 = await create_qr_image_base64(tp_num, url)
+
+                # Extract values
                 try:
                     lbl_etpNo = await page.locator("#lbl_etpNo").inner_text()
                     if tp_num in lbl_etpNo:
                         data = {
-                            "lbl_etpNo": lbl_etpNo,
+                            "qr_code_base64": qr_base64,
+                            "tp_num": tp_num,  # Needed for QR image reference in template
+                            "lbl_etpNo": tp_num,
                             "lbl_name_of_lease": await page.locator("#lbl_name_of_lease").inner_text(),
                             "lbl_mobile_no": await page.locator("#lbl_mobile_no").inner_text(),
                             "lbl_SerialNumber": await page.locator("#lbl_SerialNumber").inner_text(),
@@ -62,15 +87,18 @@ async def pdf_gen(tp_num_list, log_callback=print, send_pdf_callback=None):
                             "lbl_v_cap": await page.locator("#lbl_v_cap").inner_text()
                         }
                     else:
-                        raise ValueError("ETP not matched in page.")
+                        raise ValueError(f"ETP number mismatch: expected {tp_num}, got {lbl_etpNo}")
+
                 except Exception as e:
                     log_callback(f"⚠️ TP {tp_num} not found or invalid: {e}")
                     await page.close()
                     continue
 
+                # Fill template
                 template_str = await load_template()
                 filled_html = await fill_template(data, template_str)
 
+                # Save as PDF
                 pdf_path = os.path.join("pdf", f"{tp_num}.pdf")
                 render_page = await context.new_page()
                 await render_page.set_content(filled_html, wait_until="domcontentloaded")
@@ -78,6 +106,13 @@ async def pdf_gen(tp_num_list, log_callback=print, send_pdf_callback=None):
                 await render_page.close()
                 await page.close()
 
+                # Log success
+                # log_callback(f"✅ Generated PDF for TP {tp_num}")
+
+                # Collect path
+                all_pdfs.append((tp_num, pdf_path))
+
+                # Optional callback to send immediately
                 if send_pdf_callback:
                     if inspect.iscoroutinefunction(send_pdf_callback):
                         await send_pdf_callback(pdf_path, tp_num)
@@ -88,3 +123,5 @@ async def pdf_gen(tp_num_list, log_callback=print, send_pdf_callback=None):
                 log_callback(f"❌ Failed TP {tp_num}: {str(e)}")
 
         await browser.close()
+
+    return all_pdfs

@@ -16,7 +16,7 @@ from fetch_emm11_data import fetch_emm11_data
 from login_to_website import login_to_website
 from pdf_gen import pdf_gen  # Make sure pdf_gen returns merged path
 
-BOT_TOKEN = '8400491894:AAH48OxxgkKBE2Hu-RzA5zZaw9j9l0XuC1U'
+BOT_TOKEN = '7933257148:AAHf7HUyBtjQbnzlUqJpGwz0S2yJfC33mqw'  # 🔐 Replace with your actual bot token
 
 ASK_START, ASK_END, ASK_DISTRICT = range(3)
 user_sessions = {}
@@ -31,7 +31,7 @@ def ask_start(update: Update, context: CallbackContext):
         update.message.reply_text("Got it. Now enter the end number:")
         return ASK_END
     except ValueError:
-        update.message.reply_text("❌ Please enter a valid number.")
+        update.message.reply_text("Please enter a valid number.")
         return ASK_START
 
 def ask_end(update: Update, context: CallbackContext):
@@ -40,7 +40,7 @@ def ask_end(update: Update, context: CallbackContext):
         update.message.reply_text("Now, please enter the district name:")
         return ASK_DISTRICT
     except ValueError:
-        update.message.reply_text("❌ Please enter a valid number.")
+        update.message.reply_text("Please enter a district name.")
         return ASK_END
 
 def ask_district(update: Update, context: CallbackContext):
@@ -58,11 +58,11 @@ def ask_district(update: Update, context: CallbackContext):
 
     async def send_entry(entry):
         msg = (
-            f"eMM11 Number: {entry['eMM11_num']}\n"
-            f"District: {entry['destination_district']}\n"
-            f"Address: {entry['destination_address']}\n"
-            f"Qty: {entry['quantity_to_transport']}\n"
-            f"Generated On: {entry['generated_on']}"
+            f"{entry['eMM11_num']}\n"
+            f"{entry['destination_district']}\n"
+            f"{entry['destination_address']}\n"
+            f"{entry['quantity_to_transport']}\n"
+            f"{entry['generated_on']}"
         )
         context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
         user_sessions[user_id]["data"].append(entry)
@@ -92,33 +92,53 @@ def button_handler(update: Update, context: CallbackContext):
 
     if query.data == "generate_pdf":
         tp_num_list = context.user_data.get("tp_num_list", [])
-        if tp_num_list:
-            # query.edit_message_text("⏳ Generating PDFs and sending to you...")
-
-            def send_pdf_callback(pdf_path, tp_num):  # ✅ FIXED: Accept both pdf_path and tp_num
-                with open(pdf_path, 'rb') as f:
-                    context.bot.send_document(
-                        chat_id=query.message.chat.id,
-                        document=f,
-                        filename=f"{tp_num}.pdf"  # Optional: use tp_num for filename
-                    )
-
-            async def generate_and_send():
-                await pdf_gen(
-                    tp_num_list,
-                    log_callback=lambda msg: context.bot.send_message(chat_id=query.message.chat.id, text=msg),
-                    send_pdf_callback=send_pdf_callback
-                )
-                try:
-                    shutil.rmtree("pdf")
-                except:
-                    pass
-
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(generate_and_send())
-        else:
+        if not tp_num_list:
             query.edit_message_text("⚠️ No TP numbers found. Please process again.")
+            return
+
+        async def generate_and_store():
+            await pdf_gen(
+                tp_num_list,
+                log_callback=lambda msg: context.bot.send_message(chat_id=query.message.chat.id, text=msg),
+                send_pdf_callback=None  # ❌ Don't send now
+            )
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(generate_and_store())
+
+        # ✅ Show a button for each PDF
+        keyboard = []
+        for tp_num in tp_num_list:
+            keyboard.append([
+                InlineKeyboardButton(f"📄 {tp_num}.pdf", callback_data=f"pdf_{tp_num}")
+            ])
+        keyboard.append([InlineKeyboardButton("❌ Exit", callback_data="exit_process")])
+
+        context.bot.send_message(
+            chat_id=query.message.chat.id,
+            text="✅ PDFs are ready. Click a button below to download:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    # ✅ Handle individual PDF request buttons
+    elif query.data.startswith("pdf_"):
+        tp_num = query.data.replace("pdf_", "")
+        pdf_path = os.path.join("pdf", f"{tp_num}.pdf")
+        if os.path.exists(pdf_path):
+            with open(pdf_path, "rb") as f:
+                context.bot.send_document(
+                    chat_id=query.message.chat.id,
+                    document=f,
+                    filename=f"{tp_num}.pdf",
+                    caption=f"📎 Download PDF for TP {tp_num}"
+                )
+        else:
+            context.bot.send_message(
+                chat_id=query.message.chat.id,
+                text=f"❌ PDF for TP {tp_num} not found. Please regenerate."
+            )
         return
 
     if user_id not in user_sessions:
@@ -159,7 +179,6 @@ def button_handler(update: Update, context: CallbackContext):
         asyncio.set_event_loop(loop)
         loop.run_until_complete(process_and_prompt())
 
-
 def cancel(update: Update, context: CallbackContext):
     update.message.reply_text("🚫 Operation cancelled.")
     return ConversationHandler.END
@@ -169,6 +188,7 @@ def main():
         shutil.rmtree("pdf")
     except:
         pass
+
     updater = Updater(BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
 
