@@ -27,40 +27,6 @@ from reportlab.lib.utils import ImageReader
 from io import BytesIO
 import base64
 
-def draw_qr_after_merge(final_pdf_path, qr_base64):
-    # Decode QR code
-    qr_data = base64.b64decode(qr_base64.split(",")[1])
-    qr_image = ImageReader(BytesIO(qr_data))
-
-    # QR placement parameters
-    qr_size = 60
-    PAGE_WIDTH, PAGE_HEIGHT = A4
-    margin_top = 20     # distance from top
-    margin_right = 20   # distance from right
-
-    x = PAGE_WIDTH - qr_size - margin_right
-    y = PAGE_HEIGHT - qr_size - 100  # Move QR lower just to check if it shows
-
-    # Create a temporary overlay PDF with just QR
-    qr_overlay_stream = BytesIO()
-    qr_canvas = canvas.Canvas(qr_overlay_stream, pagesize=A4)
-    qr_canvas.drawImage(qr_image, x, y, width=qr_size, height=qr_size, preserveAspectRatio=True, mask='auto')
-    qr_canvas.save()
-    qr_overlay_stream.seek(0)
-
-    # Merge this QR overlay onto the existing final PDF
-    base_reader = PdfReader(final_pdf_path)
-    qr_reader = PdfReader(qr_overlay_stream)
-    writer = PdfWriter()
-
-    page = base_reader.pages[0]
-    qr_page = qr_reader.pages[0]
-    page.merge_page(qr_page)  # ✅ This ensures QR is on top
-
-    writer.add_page(page)
-    with open(final_pdf_path, "wb") as f:
-        writer.write(f)
-
 def draw_data(c, data):
     c.setFont("Helvetica-Bold", 6)
     margin_top = 5
@@ -181,10 +147,17 @@ def generate_pdf(data, template_path, output_path):
     # logger.info(f"✅ Generated PDF at: {output_path}")
 
 async def create_qr_image_base64(tp_num, url):
-    img = qrcode.make(url)
-    buffered = BytesIO()
-    img.save(buffered, format="PNG")
-    return f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+    try:
+        img = qrcode.make(url)
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        base64_img = base64.b64encode(buffered.getvalue())
+        if not base64_img:
+            raise ValueError("QR image base64 encoding failed (empty result)")
+        return f"data:image/png;base64,{base64_img.decode()}"
+    except Exception as e:
+        logger.error(f"❌ QR creation failed for TP {tp_num}: {e}")
+        return None
 
 async def pdf_gen(tp_num_list, template_path="form_template.pdf", log_callback=None, send_pdf_callback=None):
     if not tp_num_list:
