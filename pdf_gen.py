@@ -1,43 +1,195 @@
 import os
 import inspect
-from string import Template
-from datetime import datetime
-from playwright.async_api import async_playwright
-import aiofiles
 import base64
+import logging
 from io import BytesIO
 import qrcode
-TEMPLATE_PATH = "index.html"
 
+from playwright.async_api import async_playwright
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
+from PyPDF2 import PdfReader, PdfWriter
 
-# Load HTML template
-async def load_template():
-    async with aiofiles.open(TEMPLATE_PATH, mode="r", encoding="utf-8") as f:
-        return await f.read()
+# ---------- Logging Setup ----------
+logging.basicConfig(
+    format='[%(asctime)s] %(levelname)s: %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+# -----------------------------------
 
+from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
+from io import BytesIO
+import base64
 
-# Fill template with actual data
-async def fill_template(data: dict, template_str: str):
-    return Template(template_str).safe_substitute(data)
+def draw_qr_after_merge(final_pdf_path, qr_base64):
+    # Decode QR code
+    qr_data = base64.b64decode(qr_base64.split(",")[1])
+    qr_image = ImageReader(BytesIO(qr_data))
 
+    # QR placement parameters
+    qr_size = 60
+    PAGE_WIDTH, PAGE_HEIGHT = A4
+    margin_top = 20     # distance from top
+    margin_right = 20   # distance from right
 
-# Create and save QR code
+    x = PAGE_WIDTH - qr_size - margin_right
+    y = PAGE_HEIGHT - qr_size - 100  # Move QR lower just to check if it shows
+
+    # Create a temporary overlay PDF with just QR
+    qr_overlay_stream = BytesIO()
+    qr_canvas = canvas.Canvas(qr_overlay_stream, pagesize=A4)
+    qr_canvas.drawImage(qr_image, x, y, width=qr_size, height=qr_size, preserveAspectRatio=True, mask='auto')
+    qr_canvas.save()
+    qr_overlay_stream.seek(0)
+
+    # Merge this QR overlay onto the existing final PDF
+    base_reader = PdfReader(final_pdf_path)
+    qr_reader = PdfReader(qr_overlay_stream)
+    writer = PdfWriter()
+
+    page = base_reader.pages[0]
+    qr_page = qr_reader.pages[0]
+    page.merge_page(qr_page)  # ✅ This ensures QR is on top
+
+    writer.add_page(page)
+    with open(final_pdf_path, "wb") as f:
+        writer.write(f)
+
+def draw_data(c, data):
+    c.setFont("Helvetica", 5)
+
+    def draw_wrapped_text(x, y, text, max_words=4, line_spacing=6):
+        words = text.split()
+        lines = []
+
+        # Split text into chunks of max_words
+        for i in range(0, len(words), max_words):
+            lines.append(" ".join(words[i:i + max_words]))
+
+        # Draw up to 3 lines
+        for i, line in enumerate(lines[:3]):
+            c.drawString(x, y - i * line_spacing, line)
+
+    # Top section
+    c.drawString(245, 716.5, data.get("emM11", ""))
+    c.drawString(372, 717.5, data.get("lessee_id", ""))
+
+    draw_wrapped_text(100, 707, data.get("lessee_name", ""))
+    c.drawString(260, 707, data.get("lessee_mobile", ""))
+    draw_wrapped_text(435, 708, data.get("lease_details", ""))
+
+    # Middle section
+    c.drawString(100, 690, data.get("tehsil", ""))
+    c.drawString(260, 690, data.get("district", ""))
+    c.drawString(405, 682, data.get("qty", ""))
+
+    draw_wrapped_text(100, 672.5, data.get("mineral", ""))
+    c.drawString(265, 672.5, data.get("loading_from", ""))
+    c.drawString(435, 672.5, data.get("destination", ""))
+
+    c.drawString(60, 641, data.get("distance", ""))
+    c.drawString(250, 648, data.get("generated_on", ""))
+    c.drawString(435, 648, data.get("valid_upto", ""))
+
+    c.drawString(110, 625, data.get("travel_duration", ""))
+    c.drawString(260, 630, data.get("destination_district", ""))
+    c.drawString(435, 630, data.get("destination_state", ""))
+
+    c.drawString(195, 607, data.get("pit_value", ""))
+    c.drawString(330, 613, data.get("serial_number", ""))
+
+    c.drawString(150, 592, data.get("registration_number", ""))
+    c.drawString(160, 583, data.get("driver_mobile", ""))
+    c.drawString(320, 592, data.get("vehicle_type", ""))
+    c.drawString(320, 583, data.get("driver_dl", ""))
+    c.drawString(470, 592, data.get("driver_name", ""))
+
+    if "qr_code_base64" in data:
+        try:
+            qr_data = base64.b64decode(data["qr_code_base64"].split(",")[1])
+            qr_image = ImageReader(BytesIO(qr_data))
+
+            # === QR and layout settings ===
+            qr_size = 30  # QR size
+            padding_top = 5
+            padding_bottom = 5
+            padding_left = 5
+            padding_right = 5
+
+            bg_color = (1, 1, 1)  # pure white background  # light gray background (R, G, B)
+            PAGE_WIDTH, PAGE_HEIGHT = A4
+            margin_right = 80
+            margin_top = 80
+
+            # Position of QR image (bottom-left of QR)
+            x_qr = PAGE_WIDTH - qr_size - margin_right
+            y_qr = PAGE_HEIGHT - qr_size - margin_top
+
+            # Position and size of background rectangle
+            bg_x = x_qr - padding_left
+            bg_y = y_qr - padding_bottom
+            bg_width = qr_size + padding_left + padding_right
+            bg_height = qr_size + padding_top + padding_bottom
+
+            # === Draw background rectangle ===
+            c.setFillColorRGB(*bg_color)
+            c.rect(bg_x, bg_y, bg_width, bg_height, fill=True, stroke=False)
+
+            # === Draw QR code on top ===
+            c.drawImage(
+                qr_image,
+                x_qr,
+                y_qr,
+                width=qr_size,
+                height=qr_size,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        except Exception as e:
+            logger.warning(f"⚠️ QR drawing failed: {e}")
+
+def generate_pdf(data, template_path, output_path):
+    overlay_stream = BytesIO()
+    c = canvas.Canvas(overlay_stream, pagesize=A4)
+    draw_data(c, data)
+    c.save()
+    overlay_stream.seek(0)
+
+    bg_reader = PdfReader(template_path)
+    ov_reader = PdfReader(overlay_stream)
+    writer = PdfWriter()
+
+    page = bg_reader.pages[0]
+    page.merge_page(ov_reader.pages[0])
+    writer.add_page(page)
+
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+    # Now draw QR code on top
+    # if "qr_code_base64" in data:
+    #     draw_qr_after_merge(output_path, data["qr_code_base64"])
+
+    # logger.info(f"✅ Generated PDF at: {output_path}")
+
 async def create_qr_image_base64(tp_num, url):
     img = qrcode.make(url)
     buffered = BytesIO()
     img.save(buffered, format="PNG")
-    img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    return f"data:image/png;base64,{img_base64}"
+    return f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
 
-
-# Main PDF generation function
-async def pdf_gen(tp_num_list, log_callback=print, send_pdf_callback=None):
+async def pdf_gen(tp_num_list, template_path="form_template.pdf", log_callback=None, send_pdf_callback=None):
     if not tp_num_list:
-        log_callback("ℹ️ No TP numbers provided.")
+        logger.info("ℹ️ No TP numbers provided.")
         return []
 
     os.makedirs("pdf", exist_ok=True)
-    os.makedirs("temp_img", exist_ok=True)
     all_pdfs = []
 
     async with async_playwright() as p:
@@ -46,81 +198,57 @@ async def pdf_gen(tp_num_list, log_callback=print, send_pdf_callback=None):
 
         for tp_num in tp_num_list:
             tp_num = str(tp_num)
+            logger.info(f"📦 Processing TP: {tp_num}")
             try:
                 page = await context.new_page()
                 url = f"https://upmines.upsdc.gov.in/Registration/PrintRegistrationFormVehicleCheckValidOrNot.aspx?eId={tp_num}"
                 await page.goto(url, timeout=20000)
 
-                # Create QR code
-                qr_base64 = await create_qr_image_base64(tp_num, url)
+                lbl_etpNo = await page.locator("#lbl_etpNo").inner_text()
+                if tp_num not in lbl_etpNo:
+                    raise ValueError(f"Mismatch: expected {tp_num}, got {lbl_etpNo}")
 
-                # Extract values
-                try:
-                    lbl_etpNo = await page.locator("#lbl_etpNo").inner_text()
-                    if tp_num in lbl_etpNo:
-                        data = {
-                            "qr_code_base64": qr_base64,
-                            "tp_num": tp_num,  # Needed for QR image reference in template
-                            "lbl_etpNo": tp_num,
-                            "lbl_name_of_lease": await page.locator("#lbl_name_of_lease").inner_text(),
-                            "lbl_mobile_no": await page.locator("#lbl_mobile_no").inner_text(),
-                            "lbl_SerialNumber": await page.locator("#lbl_SerialNumber").inner_text(),
-                            "lbl_LeaseId": await page.locator("#lbl_LeaseId").inner_text(),
-                            "lbl_leaseDetails": await page.locator("#lbl_leaseDetails").inner_text(),
-                            "lbl_tehsil": await page.locator("#lbl_tehsil").inner_text(),
-                            "lbl_district": await page.locator("#lbl_district").inner_text(),
-                            "lbl_lease_address": await page.locator("#lbl_lease_address").inner_text(),
-                            "lbl_qty_to_Transport": await page.locator("#lbl_qty_to_Transport").inner_text(),
-                            "lbl_type_of_mining_mineral": await page.locator("#lbl_type_of_mining_mineral").inner_text(),
-                            "lbl_destination_district": await page.locator("#lbl_destination_district").inner_text(),
-                            "lbl_loadingfrom": await page.locator("#lbl_loadingfrom").inner_text(),
-                            "lbl_destination_address": await page.locator("#lbl_destination_address").inner_text(),
-                            "lbl_distrance": await page.locator("#lbl_distrance").inner_text(),
-                            "txt_etp_generated_on": await page.locator("#txt_etp_generated_on").inner_text(),
-                            "txt_etp_valid_upto": await page.locator("#txt_etp_valid_upto").inner_text(),
-                            "lbl_travel_duration": await page.locator("#lbl_travel_duration").inner_text(),
-                            "pit": await page.locator("#pit").inner_text(),
-                            "lbl_registraton_number_of_vehicle": await page.locator("#lbl_registraton_number_of_vehicle").inner_text(),
-                            "lbl_name_of_driver": await page.locator("#lbl_name_of_driver").inner_text(),
-                            "lbl_mobile_number_of_driver": await page.locator("#lbl_mobile_number_of_driver").inner_text(),
-                            "lbl_rc_gvw": await page.locator("#lbl_rc_gvw").inner_text(),
-                            "lbl_v_cap": await page.locator("#lbl_v_cap").inner_text()
+                data = {
+                            "emM11": await page.locator("#lbl_etpNo").inner_text(),
+                            "lessee_name": await page.locator("#lbl_name_of_lease").inner_text(),
+                            "lessee_mobile": await page.locator("#lbl_mobile_no").inner_text(),
+                            "serial_number": await page.locator("#lbl_SerialNumber").inner_text(),
+                            "lessee_id": await page.locator("#lbl_LeaseId").inner_text(),
+                            "lease_details": await page.locator("#lbl_leaseDetails").inner_text(),
+                            "tehsil": await page.locator("#lbl_tehsil").inner_text(),
+                            "district": await page.locator("#lbl_district").inner_text(),
+                            "qty": await page.locator("#lbl_qty_to_Transport").inner_text(),
+                            "mineral": await page.locator("#lbl_type_of_mining_mineral").inner_text(),
+                            "loading_from": await page.locator("#lbl_loadingfrom").inner_text(),
+                            "destination": await page.locator("#lbl_destination_address").inner_text(),
+                            "destination_district": await page.locator("#lbl_destination_district").inner_text(),
+                            "generated_on": await page.locator("#txt_etp_generated_on").inner_text(),
+                            "valid_upto": await page.locator("#txt_etp_valid_upto").inner_text(),
+                            "travel_duration": await page.locator("#lbl_travel_duration").inner_text(),
+                            "pit_value": await page.locator("#pit").inner_text(),
+                            "registration_number": await page.locator("#lbl_registraton_number_of_vehicle").inner_text(),
+                            "driver_name": await page.locator("#lbl_name_of_driver").inner_text(),
+                            "driver_mobile": await page.locator("#lbl_mobile_number_of_driver").inner_text(),
                         }
-                    else:
-                        raise ValueError(f"ETP number mismatch: expected {tp_num}, got {lbl_etpNo}")
 
-                except Exception as e:
-                    log_callback(f"⚠️ TP {tp_num} not found or invalid: {e}")
-                    await page.close()
-                    continue
+                data["qr_code_base64"] = await create_qr_image_base64(tp_num, url)
 
-                # Fill template
-                template_str = await load_template()
-                filled_html = await fill_template(data, template_str)
+                output_path = f"pdf/{tp_num}.pdf"
+                generate_pdf(data, template_path, output_path)
+                all_pdfs.append((tp_num, output_path))
 
-                # Save as PDF
-                pdf_path = os.path.join("pdf", f"{tp_num}.pdf")
-                render_page = await context.new_page()
-                await render_page.set_content(filled_html, wait_until="domcontentloaded")
-                await render_page.pdf(path=pdf_path, format="A4", print_background=True)
-                await render_page.close()
-                await page.close()
+                logger.info(f"✅ Successfully processed TP: {tp_num}")
 
-                # Log success
-                # log_callback(f"✅ Generated PDF for TP {tp_num}")
-
-                # Collect path
-                all_pdfs.append((tp_num, pdf_path))
-
-                # Optional callback to send immediately
                 if send_pdf_callback:
                     if inspect.iscoroutinefunction(send_pdf_callback):
-                        await send_pdf_callback(pdf_path, tp_num)
+                        await send_pdf_callback(output_path, tp_num)
                     else:
-                        send_pdf_callback(pdf_path, tp_num)
+                        send_pdf_callback(output_path, tp_num)
+
+                await page.close()
 
             except Exception as e:
-                log_callback(f"❌ Failed TP {tp_num}: {str(e)}")
+                logger.error(f"❌ Failed TP {tp_num}: {e}")
 
         await browser.close()
 
