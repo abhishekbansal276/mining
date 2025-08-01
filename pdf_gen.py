@@ -61,7 +61,7 @@ def draw_qr_after_merge(final_pdf_path, qr_base64):
         writer.write(f)
 
 def draw_data(c, data):
-    c.setFont("Helvetica-Bold", 5)
+    c.setFont("Helvetica-Bold", 6)
 
     def draw_wrapped_text(x, y, text, max_words=4, line_spacing=6):
         words = text.split()
@@ -115,7 +115,7 @@ def draw_data(c, data):
             qr_image = ImageReader(BytesIO(qr_data))
 
             # === QR and layout settings ===
-            qr_size = 30  # QR size
+            qr_size = 40  # QR size
             padding_top = 5
             padding_bottom = 5
             padding_left = 5
@@ -123,7 +123,7 @@ def draw_data(c, data):
 
             bg_color = (1, 1, 1)  # pure white background  # light gray background (R, G, B)
             PAGE_WIDTH, PAGE_HEIGHT = A4
-            margin_right = 80
+            margin_right = 70
             margin_top = 80
 
             # Position of QR image (bottom-left of QR)
