@@ -67,7 +67,7 @@ def draw_data(c, data):
     c.drawString(435, 630, data.get("destination_state", ""))
 
     c.drawString(195, 607, data.get("pit_value", ""))
-    c.drawString(330, 613, data.get(""))
+    # c.drawString(330, 613, data.get(""))
 
     c.drawString(150, 592, data.get("registration_number", ""))
     c.drawString(160, 583, data.get("driver_mobile", ""))
