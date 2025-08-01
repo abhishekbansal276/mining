@@ -112,9 +112,11 @@ def draw_data(c, data):
     c.drawString(*offset(470, 592), data.get("driver_name", ""))
 
     # QR Code
-    if "qr_code_base64" in data:
+    qr_base64 = data.get("qr_code_base64")
+
+    if qr_base64 and isinstance(qr_base64, str) and "," in qr_base64:
         try:
-            qr_data = base64.b64decode(data["qr_code_base64"].split(",")[1])
+            qr_data = base64.b64decode(qr_base64.split(",")[1])
             qr_image = ImageReader(BytesIO(qr_data))
 
             qr_size = 40
@@ -151,6 +153,9 @@ def draw_data(c, data):
 
         except Exception as e:
             logger.warning(f"⚠️ QR drawing failed: {e}")
+    else:
+        logger.warning("⚠️ QR code base64 string missing or malformed")
+
 def generate_pdf(data, template_path, output_path):
     overlay_stream = BytesIO()
     c = canvas.Canvas(overlay_stream, pagesize=A4)
