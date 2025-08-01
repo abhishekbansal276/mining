@@ -61,7 +61,7 @@ def draw_qr_after_merge(final_pdf_path, qr_base64):
         writer.write(f)
 
 def draw_data(c, data):
-    c.setFont("Helvetica", 5)
+    c.setFont("Helvetica-Bold", 5)
 
     def draw_wrapped_text(x, y, text, max_words=4, line_spacing=6):
         words = text.split()
