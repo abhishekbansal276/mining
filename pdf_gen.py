@@ -25,6 +25,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from io import BytesIO
 import base64
+import re
 
 def draw_data(c, data):
     c.setFont("Helvetica-Bold", 6)
@@ -42,7 +43,9 @@ def draw_data(c, data):
             c.drawString(x, y - i * line_spacing, line)
 
     # Top section
-    c.drawString(245, 716.5, data.get("emM11", ""))
+    raw_emM11 = data.get("emM11", "")
+    clean_emM11 = re.sub(r"[^\d]", "", raw_emM11)
+    c.drawString(245, 716.5, clean_emM11)
     c.drawString(372, 717.5, data.get("lessee_id", ""))
 
     draw_wrapped_text(100, 707, data.get("lessee_name", ""))
