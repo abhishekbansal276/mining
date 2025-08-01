@@ -156,37 +156,27 @@ def draw_data(c, data):
 
 def generate_pdf(data, template_path, output_path):
     overlay_stream = BytesIO()
-
-    # Create overlay with ReportLab
     c = canvas.Canvas(overlay_stream, pagesize=A4)
-
-    # ➤ Shift canvas for top and left margin (5pt each)
-    c.translate(5, -5)
-
-    # ➤ Draw your data
     draw_data(c, data)
-
-    # ➤ Finalize canvas
     c.save()
     overlay_stream.seek(0)
 
-    # Read background template and overlay
     bg_reader = PdfReader(template_path)
     ov_reader = PdfReader(overlay_stream)
     writer = PdfWriter()
 
-    # ➤ Merge overlay onto the first page of template
-    background_page = bg_reader.pages[0]
-    overlay_page = ov_reader.pages[0]
-    background_page.merge_page(overlay_page)
-    writer.add_page(background_page)
+    page = bg_reader.pages[0]
+    page.merge_page(ov_reader.pages[0])
+    writer.add_page(page)
 
-    # ➤ Write final merged PDF
     with open(output_path, "wb") as f:
         writer.write(f)
 
-    # (Optional) draw QR again after merge, if needed
-    # draw_qr_after_merge(output_path, data["qr_code_base64"])
+    # Now draw QR code on top
+    # if "qr_code_base64" in data:
+    #     draw_qr_after_merge(output_path, data["qr_code_base64"])
+
+    # logger.info(f"✅ Generated PDF at: {output_path}")
 
 async def create_qr_image_base64(tp_num, url):
     img = qrcode.make(url)
