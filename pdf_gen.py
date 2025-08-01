@@ -197,13 +197,15 @@ async def pdf_gen(tp_num_list, template_path="form_template.pdf", log_callback=N
                 if tp_num not in lbl_etpNo:
                     raise ValueError(f"Mismatch: expected {tp_num}, got {lbl_etpNo}")
 
-                data = {
-                            "emM11": await page.locator("#lbl_etpNo").inner_text(),
-                            "lessee_name": await page.locator("#lbl_name_of_lease").inner_text(),
+                data = {    
+                            "distance": await page.locator('#lbl_distrance').inner_text(),
+                            "destination_state": "Uttar Pradesh",
+                            "emM11": await page.locator('#lbl_etpNo').inner_text(),
+                            "lessee_name": await page.locator('#lbl_name_of_lease').inner_text(),
                             "lessee_mobile": await page.locator("#lbl_mobile_no").inner_text(),
                             "serial_number": await page.locator("#lbl_SerialNumber").inner_text(),
                             "lessee_id": await page.locator("#lbl_LeaseId").inner_text(),
-                            "lease_details": await page.locator("#lbl_leaseDetails").inner_text(),
+                            "lease_details": await page.locator('#lbl_leaseDetails').inner_text(),
                             "tehsil": await page.locator("#lbl_tehsil").inner_text(),
                             "district": await page.locator("#lbl_district").inner_text(),
                             "qty": await page.locator("#lbl_qty_to_Transport").inner_text(),
@@ -218,6 +220,7 @@ async def pdf_gen(tp_num_list, template_path="form_template.pdf", log_callback=N
                             "registration_number": await page.locator("#lbl_registraton_number_of_vehicle").inner_text(),
                             "driver_name": await page.locator("#lbl_name_of_driver").inner_text(),
                             "driver_mobile": await page.locator("#lbl_mobile_number_of_driver").inner_text(),
+                            "vehicle_type": "14 TYRE TRUCK",                       
                         }
 
                 data["qr_code_base64"] = await create_qr_image_base64(tp_num, url)
