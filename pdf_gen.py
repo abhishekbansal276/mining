@@ -18,7 +18,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 # -----------------------------------
-import re
 
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
@@ -29,84 +28,85 @@ import base64
 
 def draw_data(c, data):
     c.setFont("Helvetica-Bold", 6)
-    margin_top = 5
-    margin_left = 5
-
-    def offset(x, y):
-        return x + margin_left, y - margin_top
 
     def draw_wrapped_text(x, y, text, max_words=4, line_spacing=6):
         words = text.split()
-        lines = [" ".join(words[i:i + max_words]) for i in range(0, len(words), max_words)]
+        lines = []
+
+        # Split text into chunks of max_words
+        for i in range(0, len(words), max_words):
+            lines.append(" ".join(words[i:i + max_words]))
+
+        # Draw up to 3 lines
         for i, line in enumerate(lines[:3]):
-            c.drawString(*offset(x, y - i * line_spacing), line)
+            c.drawString(x, y - i * line_spacing, line)
 
     # Top section
-    raw_emM11 = data.get("emM11", "")
-    clean_emM11 = re.match(r"\d+", raw_emM11)
-    c.drawString(*offset(245, 716.5), clean_emM11.group() if clean_emM11 else raw_emM11)
+    c.drawString(245, 716.5, data.get("emM11", ""))
+    c.drawString(372, 717.5, data.get("lessee_id", ""))
 
-    c.drawString(*offset(372, 717.5), data.get("lessee_id", ""))
     draw_wrapped_text(100, 707, data.get("lessee_name", ""))
-    c.drawString(*offset(260, 707), data.get("lessee_mobile", ""))
+    c.drawString(260, 707, data.get("lessee_mobile", ""))
     draw_wrapped_text(435, 708, data.get("lease_details", ""))
 
     # Middle section
-    c.drawString(*offset(100, 690), data.get("tehsil", ""))
-    c.drawString(*offset(260, 690), data.get("district", ""))
-    c.drawString(*offset(405, 682), data.get("qty", ""))
+    c.drawString(100, 690, data.get("tehsil", ""))
+    c.drawString(260, 690, data.get("district", ""))
+    c.drawString(405, 682, data.get("qty", ""))
 
     draw_wrapped_text(100, 672.5, data.get("mineral", ""))
-    c.drawString(*offset(265, 672.5), data.get("loading_from", ""))
-    c.drawString(*offset(435, 672.5), data.get("destination", ""))
+    c.drawString(265, 672.5, data.get("loading_from", ""))
+    c.drawString(435, 672.5, data.get("destination", ""))
 
-    c.drawString(*offset(60, 641), data.get("distance", ""))
-    c.drawString(*offset(250, 648), data.get("generated_on", ""))
-    c.drawString(*offset(435, 648), data.get("valid_upto", ""))
+    c.drawString(60, 641, data.get("distance", ""))
+    c.drawString(250, 648, data.get("generated_on", ""))
+    c.drawString(435, 648, data.get("valid_upto", ""))
 
-    c.drawString(*offset(110, 625), data.get("travel_duration", ""))
-    c.drawString(*offset(260, 630), data.get("destination_district", ""))
-    c.drawString(*offset(435, 630), data.get("destination_state", ""))
+    c.drawString(110, 625, data.get("travel_duration", ""))
+    c.drawString(260, 630, data.get("destination_district", ""))
+    c.drawString(435, 630, data.get("destination_state", ""))
 
-    c.drawString(*offset(195, 607), data.get("pit_value", ""))
-    c.drawString(*offset(330, 613), data.get(""))  # Fixed
+    c.drawString(195, 607, data.get("pit_value", ""))
+    c.drawString(330, 613, data.get(""))
 
-    c.drawString(*offset(150, 592), data.get("registration_number", ""))
-    c.drawString(*offset(160, 583), data.get("driver_mobile", ""))
-    c.drawString(*offset(320, 592), data.get("vehicle_type", ""))
-    c.drawString(*offset(320, 583), data.get("driver_dl", ""))
-    c.drawString(*offset(470, 592), data.get("driver_name", ""))
+    c.drawString(150, 592, data.get("registration_number", ""))
+    c.drawString(160, 583, data.get("driver_mobile", ""))
+    c.drawString(320, 592, data.get("vehicle_type", ""))
+    c.drawString(320, 583, data.get("driver_dl", ""))
+    c.drawString(470, 592, data.get("driver_name", ""))
 
-    # QR Code
-    qr_base64 = data.get("qr_code_base64")
-
-    if qr_base64 and isinstance(qr_base64, str) and "," in qr_base64:
+    if "qr_code_base64" in data:
         try:
-            qr_data = base64.b64decode(qr_base64.split(",")[1])
+            qr_data = base64.b64decode(data["qr_code_base64"].split(",")[1])
             qr_image = ImageReader(BytesIO(qr_data))
 
-            qr_size = 40
+            # === QR and layout settings ===
+            qr_size = 40  # QR size
             padding_top = 5
             padding_bottom = 5
             padding_left = 5
             padding_right = 5
 
-            bg_color = (1, 1, 1)
+            bg_color = (1, 1, 1)  # pure white background  # light gray background (R, G, B)
             PAGE_WIDTH, PAGE_HEIGHT = A4
             margin_right = 70
-            margin_top_qr = 80
+            margin_top = 80
 
+            # Position of QR image (bottom-left of QR)
             x_qr = PAGE_WIDTH - qr_size - margin_right
-            y_qr = PAGE_HEIGHT - qr_size - margin_top_qr
+            y_qr = PAGE_HEIGHT - qr_size - margin_top
 
+            # Position and size of background rectangle
             bg_x = x_qr - padding_left
             bg_y = y_qr - padding_bottom
             bg_width = qr_size + padding_left + padding_right
             bg_height = qr_size + padding_top + padding_bottom
 
+            # === Draw background rectangle ===
             c.setFillColorRGB(*bg_color)
             c.rect(bg_x, bg_y, bg_width, bg_height, fill=True, stroke=False)
 
+            # === Draw QR code on top ===
             c.drawImage(
                 qr_image,
                 x_qr,
@@ -119,8 +119,6 @@ def draw_data(c, data):
 
         except Exception as e:
             logger.warning(f"⚠️ QR drawing failed: {e}")
-    else:
-        logger.warning("⚠️ QR code base64 string missing or malformed")
 
 def generate_pdf(data, template_path, output_path):
     overlay_stream = BytesIO()
@@ -147,17 +145,10 @@ def generate_pdf(data, template_path, output_path):
     # logger.info(f"✅ Generated PDF at: {output_path}")
 
 async def create_qr_image_base64(tp_num, url):
-    try:
-        img = qrcode.make(url)
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        base64_img = base64.b64encode(buffered.getvalue())
-        if not base64_img:
-            raise ValueError("QR image base64 encoding failed (empty result)")
-        return f"data:image/png;base64,{base64_img.decode()}"
-    except Exception as e:
-        logger.error(f"❌ QR creation failed for TP {tp_num}: {e}")
-        return None
+    img = qrcode.make(url)
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    return f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
 
 async def pdf_gen(tp_num_list, template_path="form_template.pdf", log_callback=None, send_pdf_callback=None):
     if not tp_num_list:
