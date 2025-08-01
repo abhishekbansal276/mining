@@ -145,10 +145,30 @@ def generate_pdf(data, template_path, output_path):
     # logger.info(f"✅ Generated PDF at: {output_path}")
 
 async def create_qr_image_base64(tp_num, url):
-    img = qrcode.make(url)
-    buffered = BytesIO()
-    img.save(buffered, format="PNG")
-    return f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+    logger.info(f"🧾 Generating QR for TP: {tp_num}")
+    
+    if not url or not isinstance(url, str):
+        logger.error(f"❌ Invalid URL for TP {tp_num}: {url!r}")
+        raise ValueError(f"Invalid URL passed to QR generator for TP {tp_num}")
+
+    try:
+        logger.debug(f"🔗 QR URL for TP {tp_num}: {url}")
+        img = qrcode.make(url)
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_bytes = buffered.getvalue()
+
+        if not img_bytes:
+            logger.error(f"❌ QR image generation failed for TP {tp_num}: no bytes returned")
+            raise ValueError(f"QR image generation failed for TP {tp_num}")
+
+        base64_str = base64.b64encode(img_bytes).decode()
+        logger.info(f"✅ QR generated successfully for TP {tp_num}")
+        return f"data:image/png;base64,{base64_str}"
+
+    except Exception as e:
+        logger.exception(f"❌ Exception while generating QR for TP {tp_num}: {e}")
+        raise
 
 async def pdf_gen(tp_num_list, template_path="form_template.pdf", log_callback=None, send_pdf_callback=None):
     if not tp_num_list:
