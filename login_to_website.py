@@ -10,6 +10,7 @@ async def login_to_website(data, log_callback=print):
     aadhar_number = "855095518363"
     password = "Nic@1616"
     max_attempts = 5
+    # print(data)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(

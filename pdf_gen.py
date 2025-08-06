@@ -200,7 +200,7 @@ async def pdf_gen(tp_num_list, template_path="form_template.pdf", log_callback=N
                 data = {    
                             "distance": await page.locator('#lbl_distrance').inner_text(),
                             "destination_state": "Uttar Pradesh",
-                            "emM11": await page.locator('#lbl_etpNo').inner_text(),
+                            "emM11": tp_num,
                             "lessee_name": await page.locator('#lbl_name_of_lease').inner_text(),
                             "lessee_mobile": await page.locator("#lbl_mobile_no").inner_text(),
                             "serial_number": await page.locator("#lbl_SerialNumber").inner_text(),

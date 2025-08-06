@@ -30,8 +30,8 @@ async def process_emm11(page: Page, emm11_numbers_list, log_callback=print, send
                     error_text = await error_locator.inner_text()
 
                     tp_num = str(tp_num)
-                    if "not generated for storage license" in error_text:
-                        log_callback(f"{tp_num}\n : Unused")
+                    if "This eMM11 is not generated for storage license" in error_text:
+                        log_callback(f"{tp_num} : Unused")
                         tp_num_list.append(tp_num)
                 else:
                     log_callback(f"TP Number: {tp_num}\n✅ No error detected or form submitted.")
