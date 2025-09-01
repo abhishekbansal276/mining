@@ -1,5 +1,5 @@
 aiofiles==23.2.1
-APScheduler==3.10.4
+APScheduler==3.6.3
 cachetools==5.3.3
 certifi==2024.8.30
 easyocr==1.7.2
@@ -41,3 +41,4 @@ typing_extensions==4.12.2
 tzdata==2024.1
 tzlocal==5.2
 urllib3==2.2.2
+
