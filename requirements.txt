@@ -1,6 +1,6 @@
 aiofiles==23.2.1
-APScheduler==3.6.3
-cachetools==4.2.2
+APScheduler==3.10.4
+cachetools==5.3.3
 certifi==2024.8.30
 easyocr==1.7.2
 filelock==3.15.4
@@ -36,11 +36,8 @@ tifffile==2024.8.30
 torch==2.3.0
 torchaudio==2.3.0
 torchvision==0.18.0
-tornado==6.1
+tornado==6.4.1
 typing_extensions==4.12.2
 tzdata==2024.1
 tzlocal==5.2
 urllib3==2.2.2
-
-
-
